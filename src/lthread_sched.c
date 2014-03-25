@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <pthread.h>
+#include <poll.h>
 #include <errno.h>
 #include <inttypes.h>
 
@@ -146,7 +147,8 @@ _lthread_sched_isdone(struct lthread_sched *sched)
     return (RB_EMPTY(&sched->waiting) &&
         LIST_EMPTY(&sched->busy) &&
         RB_EMPTY(&sched->sleeping) &&
-        TAILQ_EMPTY(&sched->ready));
+        TAILQ_EMPTY(&sched->ready) &&
+        cfuhash_num_entries(sched->waiting_multi) == 0);
 }
 
 void
@@ -199,9 +201,11 @@ lthread_run(void)
             p = --sched->num_new_events;
 
             fd = _lthread_poller_ev_get_fd(&sched->eventlist[p]);
+            if (INVALID_SOCKET(fd)) /* skip already processed sockets by _lthread_desched_events() */
+                continue;
 
             /* 
-             * We got signaled via trigger to wakeup from polling & rusume file io.
+             * We got signaled via trigger to wakeup from polling & resume file io.
              * Those lthreads will get handled in step 4.
              */
             if (fd == sched->eventfd) {
@@ -212,6 +216,16 @@ lthread_run(void)
             is_eof = _lthread_poller_ev_is_eof(&sched->eventlist[p]);
             if (is_eof)
                 errno = ECONNRESET;
+
+            /*
+             * per-lthread multiple events handling: all fds belonging to signle lthread
+             * will be handled at 1 invocation of _lthread_desched_events()
+             */
+            lt = _lthread_desched_events(fd);
+            if (lt) {
+                _lthread_resume(lt);
+                continue;
+            }
 
             lt_read = _lthread_desched_event(fd, LT_EV_READ);
             if (lt_read != NULL) {
@@ -317,6 +331,118 @@ _lthread_sched_event(struct lthread *lt, int fd, enum lthread_event e,
     _lthread_sched_sleep(lt, timeout);
     lt->fd_wait = -1;
     lt->state &= CLEARBIT(st);
+}
+
+/*
+ * Deschedules the events by removing the chain of fd -> lt nodes from hash table.
+ * hash table check by fd is done. If ltread is there, process all it's fds, and mark
+ * them as invalid sockets in eventlist, so lthread_run()'ll just skip'em
+ */
+struct lthread *
+_lthread_desched_events(int fd) {
+    struct lthread_sched *sched = lthread_get_sched();
+    struct lthread *tgt = NULL;
+    int64_t key;
+
+    key = FD_KEY(fd, LT_EV_READ);
+    if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0) {
+        key = FD_KEY(fd, LT_EV_WRITE);
+        if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0)
+            return NULL;
+    }
+
+    struct pollfd *fds = tgt->multiple_evs;
+    nfds_t i, nfds = tgt->multiple_evs_count;
+
+    for (i = 0; i < nfds; i++) {
+        /* determine the event type from the user given array */
+        if (fds[i].events & POLLIN) {
+            key = FD_KEY(fds[i].fd, LT_EV_READ);
+        } else if (fds[i].events & POLLOUT) {
+            key = FD_KEY(fds[i].fd, LT_EV_WRITE);
+        }
+
+        /* delete hash table entries and fill in the user's struct pollfd */
+        cfuhash_delete_data(sched->waiting_multi, &key, sizeof(key));
+
+        int evidx;
+
+        for (evidx = sched->num_new_events; evidx >= 0; evidx--) {
+            if (!INVALID_SOCKET(fds[i].fd) && fds[i].fd == _lthread_poller_ev_get_fd(&sched->eventlist[evidx])) {
+                _lthread_poller_ev_set_fd(&sched->eventlist[evidx], -1); /* mark each poll-related fd to be skipped in sched->eventlist */
+                tgt->multiple_evs_ready++; /* optimistically increase events count :] */
+                if (_lthread_poller_ev_is_eof(&sched->eventlist[evidx]))
+                    fds[i].revents |= POLLHUP;
+                if (_lthread_poller_ev_is_read(&sched->eventlist[evidx]))
+                    fds[i].revents |= POLLIN;
+                else if (_lthread_poller_ev_is_write(&sched->eventlist[evidx]))
+                    fds[i].revents |= POLLOUT;
+                else
+                    tgt->multiple_evs_ready--;
+
+                break;
+            }
+        }
+    }
+
+    return tgt;
+}
+
+/*
+ * Tend to wait on lthread for a multiple fds, poll() style.
+ * Returns amount of ready descriptors.
+ */
+int
+_lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, int timeout)
+{
+    if (timeout == 0)
+        return poll(fds, nfds, 0);
+
+    struct lthread_sched *sched = lthread_get_sched();
+    /* struct lthread *lt_tmp = NULL; */
+    enum lthread_st st = LT_ST_WAIT_MULTIPLE;
+
+    lt->state |= BIT(st);
+    lt->fd_wait = -1;
+    lt->multiple_evs = fds; /* remember struct pollfd to let in-scheduler pick of all related descriptors effectively */
+    lt->multiple_evs_count = nfds;
+
+    if (timeout < 0)
+        timeout = 0;
+
+    nfds_t i;
+
+    assert(fds != NULL);
+    for (i = 0; i < nfds; i++) {
+        if (INVALID_SOCKET(fds[i].fd))
+            continue;
+
+        enum lthread_event ev;
+
+        if (fds[i].events & POLLIN) {
+            ev = LT_EV_READ;
+            _lthread_poller_ev_register_rd(fds[i].fd);
+        } else if (fds[i].events & POLLOUT) {
+            ev = LT_EV_WRITE;
+            _lthread_poller_ev_register_wr(fds[i].fd);
+        } else {
+            assert(0);
+        }
+
+        /* add to sched->waiting_multi; fd & ev is the key, lthread pointer is the data */
+        int64_t key = FD_KEY(fds[i].fd, ev);
+        cfuhash_put_data(sched->waiting_multi, &key, sizeof(key), lt, sizeof(void *), NULL);
+        fds[i].revents = 0;
+    }
+
+    _lthread_sched_sleep(lt, (uint64_t) timeout);
+    lt->state &= CLEARBIT(st);
+    lt->multiple_evs = NULL;
+    lt->multiple_evs_count = 0;
+    int ret = lt->multiple_evs_ready;
+    lt->multiple_evs_ready = 0;
+
+    return ret;
 }
 
 /*

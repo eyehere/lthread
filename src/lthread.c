@@ -257,6 +257,7 @@ _sched_free(struct lthread_sched *sched)
     close(sched->eventfd);
 #endif
     pthread_mutex_destroy(&sched->defer_mutex);
+    cfuhash_destroy(sched->waiting_multi);
 
     free(sched);
     pthread_setspecific(lthread_sched_key, NULL);
@@ -302,6 +303,7 @@ sched_create(size_t stack_size)
     TAILQ_INIT(&new_sched->ready);
     TAILQ_INIT(&new_sched->defer);
     LIST_INIT(&new_sched->busy);
+    new_sched->waiting_multi = cfuhash_new();
 
     bzero(&new_sched->ctx, sizeof(struct cpu_ctx));
 
@@ -518,7 +520,7 @@ void
 lthread_set_funcname(const char *f)
 {
     struct lthread *lt = lthread_get_sched()->current_lthread;
-    strncpy(lt->funcname, f, 64);
+    strncpy(lt->funcname, f, 64); /* FIXME at least with sizeof */
 }
 
 uint64_t
@@ -531,9 +533,9 @@ lthread_id(void)
  * convenience function for performance measurement.
  */
 void
-lthread_print_timestamp(char *msg)
+lthread_print_timestamp(char *msg) /* FIXME const char * here? */
 {
-	struct timeval t1 = {0, 0};
+    struct timeval t1 = {0, 0};
     gettimeofday(&t1, NULL);
-	printf("lt timestamp: sec: %ld usec: %ld (%s)\n", t1.tv_sec, (long) t1.tv_usec, msg);
+    printf("lt timestamp: sec: %ld usec: %ld (%s)\n", t1.tv_sec, (long) t1.tv_usec, msg);
 }

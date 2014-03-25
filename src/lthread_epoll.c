@@ -109,6 +109,12 @@ _lthread_poller_ev_get_fd(struct epoll_event *ev)
     return (ev->data.fd);
 }
 
+inline void
+_lthread_poller_ev_set_fd(struct epoll_event *ev, int value)
+{
+    ev->data.fd = value;
+}
+
 inline int
 _lthread_poller_ev_get_event(struct epoll_event *ev)
 {
@@ -145,6 +151,7 @@ _lthread_poller_ev_register_trigger(void)
         assert(sched->eventfd != -1);
     }
     ev.events = EPOLLIN;
+    ev.data.u64 = 0; /* without it, there s uninitialised variable warning with valgrind */
     ev.data.fd = sched->eventfd;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_ADD, sched->eventfd, &ev);
     assert(ret != -1);

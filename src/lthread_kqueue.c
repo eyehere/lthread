@@ -141,6 +141,11 @@ _lthread_poller_ev_get_fd(struct kevent *ev)
     return ev->ident;
 }
 
+inline void
+_lthread_poller_ev_set_fd(struct kevent *ev, int value) {
+    ev->ident = value;
+}
+
 inline int
 _lthread_poller_ev_get_event(struct kevent *ev)
 {

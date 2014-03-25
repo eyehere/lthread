@@ -51,6 +51,7 @@ void _lthread_poller_ev_clear_trigger(void);
 
 int _lthread_poller_ev_get_event(POLL_EVENT_TYPE *ev);
 int _lthread_poller_ev_get_fd(POLL_EVENT_TYPE *ev);
+void _lthread_poller_ev_set_fd(POLL_EVENT_TYPE *ev, int value);
 int _lthread_poller_ev_is_eof(POLL_EVENT_TYPE *ev);
 int _lthread_poller_ev_is_read(POLL_EVENT_TYPE *ev);
 int _lthread_poller_ev_is_write(POLL_EVENT_TYPE *ev);

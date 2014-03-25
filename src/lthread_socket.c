@@ -47,7 +47,10 @@
     #define FLAG | MSG_NOSIGNAL
 #endif
 
-#define LTHREAD_RECV(x, y)                                  \
+/* FIXME check for EWOULDBLOCK along with EAGAIN? */
+/* TODO obtain timeout from fd for all *_posix functions? */
+
+#define LTHREAD_RECV(x, y, t)                               \
 x {                                                         \
     ssize_t ret = 0;                                        \
     struct lthread *lt = lthread_get_sched()->current_lthread;   \
@@ -59,7 +62,7 @@ x {                                                         \
         if (ret == -1 && errno != EAGAIN)                   \
             return (-1);                                    \
         if ((ret == -1 && errno == EAGAIN)) {               \
-            _lthread_sched_event(lt, fd, LT_EV_READ, timeout);  \
+            _lthread_sched_event(lt, fd, LT_EV_READ, t);    \
             if (lt->state & BIT(LT_ST_EXPIRED))             \
                 return (-2);                                \
         }                                                   \
@@ -87,7 +90,7 @@ x {                                                         \
         if (ret == -1 && errno != EAGAIN)                   \
             return (-1);                                    \
         if ((ret == -1 && errno == EAGAIN)) {               \
-            _lthread_sched_event(lt, fd, LT_EV_READ, timeout); \
+            _lthread_sched_event(lt, fd, LT_EV_READ, timeout);   \
             if (lt->state & BIT(LT_ST_EXPIRED))             \
                 return (-2);                                \
         }                                                   \
@@ -294,12 +297,40 @@ err:
 LTHREAD_RECV(
     ssize_t lthread_recv(int fd, void *buf, size_t length, int flags,
         uint64_t timeout),
-    recv(fd, buf, length, flags FLAG)
+    recv(fd, buf, length, flags FLAG),
+    timeout
 )
 
 LTHREAD_RECV(
-    ssize_t lthread_read(int fd, void *buf, size_t length, uint64_t timeout),
-    read(fd, buf, length)
+    ssize_t lthread_read(int fd, void *buf, size_t length,
+        uint64_t timeout),
+    read(fd, buf, length),
+    timeout
+)
+
+LTHREAD_RECV(
+    ssize_t lthread_read_posix(int fd, void *buf, size_t length),
+    read(fd, buf, length),
+    0
+)
+
+LTHREAD_RECV(
+    ssize_t lthread_recv_posix(int fd, void *buf, size_t length, int flags),
+    recv(fd, buf, length, flags FLAG),
+    0
+)
+
+LTHREAD_RECV(
+    ssize_t lthread_recvmsg_posix(int fd, struct msghdr *message, int flags),
+    recvmsg(fd, message, flags FLAG),
+    0
+)
+
+LTHREAD_RECV(
+    ssize_t lthread_recvfrom_posix(int fd, void *buf, size_t length, int flags,
+        struct sockaddr *address, socklen_t *address_len),
+    recvfrom(fd, buf, length, flags FLAG, address, address_len),
+    0
 )
 
 LTHREAD_RECV_EXACT(
@@ -317,13 +348,15 @@ LTHREAD_RECV_EXACT(
 LTHREAD_RECV(
     ssize_t lthread_recvmsg(int fd, struct msghdr *message, int flags,
         uint64_t timeout),
-    recvmsg(fd, message, flags FLAG)
+    recvmsg(fd, message, flags FLAG),
+    timeout
 )
 
 LTHREAD_RECV(
     ssize_t lthread_recvfrom(int fd, void *buf, size_t length, int flags,
         struct sockaddr *address, socklen_t *address_len, uint64_t timeout),
-    recvfrom(fd, buf, length, flags FLAG, address, address_len)
+    recvfrom(fd, buf, length, flags FLAG, address, address_len),
+    timeout
 )
 
 LTHREAD_SEND(
@@ -347,11 +380,10 @@ LTHREAD_SEND_ONCE(
     sendto(fd, buf, length, flags FLAG, dest_addr, dest_len)
 )
 
-int
-lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
+static inline int
+_lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
     uint64_t timeout)
 {
-
     int ret = 0;
     struct lthread *lt = lthread_get_sched()->current_lthread;
 
@@ -366,7 +398,7 @@ lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
             _lthread_sched_event(lt, fd, LT_EV_WRITE, timeout);
             if (lt->state & BIT(LT_ST_EXPIRED))
                 return (-2);
-            
+
             ret = 0;
             break;
         } else {
@@ -375,6 +407,19 @@ lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
     }
 
     return (ret);
+}
+
+int
+lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
+    uint64_t timeout)
+{
+    return _lthread_connect(fd, name, namelen, timeout);
+}
+
+int
+lthread_connect_posix(int fd, struct sockaddr *name, socklen_t namelen)
+{
+    return _lthread_connect(fd, name, namelen, 0);
 }
 
 ssize_t
@@ -439,3 +484,10 @@ lthread_sendfile(int fd, int s, off_t offset, size_t nbytes,
     } while (1);
 }
 #endif
+
+int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout) {
+    struct lthread *lt = lthread_get_sched()->current_lthread;
+    _lthread_renice(lt); /* doubt if it's necessary */
+
+    return _lthread_sched_events_poll(lt, fds, nfds, timeout);
+}
