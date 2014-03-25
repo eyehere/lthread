@@ -81,6 +81,7 @@ _lthread_poller_ev_register_rd(int fd)
     struct lthread_sched *sched = lthread_get_sched();
 
     ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP;
+    ev.data.u64 = 0;
     ev.data.fd = fd;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_MOD, fd, &ev);
     if (ret < 0)
