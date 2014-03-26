@@ -533,7 +533,7 @@ lthread_id(void)
  * convenience function for performance measurement.
  */
 void
-lthread_print_timestamp(char *msg) /* FIXME const char * here? */
+lthread_print_timestamp(const char *msg)
 {
     struct timeval t1 = {0, 0};
     gettimeofday(&t1, NULL);

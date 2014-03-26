@@ -80,6 +80,7 @@ int     lthread_connect(int fd, struct sockaddr *, socklen_t, uint64_t timeout);
 int     lthread_connect_posix(int fd, struct sockaddr *, socklen_t);
 ssize_t lthread_recv(int fd, void *buf, size_t buf_len, int flags,
     uint64_t timeout);
+ssize_t lthread_recv_posix(int fd, void *buf, size_t length, int flags);
 ssize_t lthread_read(int fd, void *buf, size_t length, uint64_t timeout);
 ssize_t lthread_read_posix(int fd, void *buf, size_t length);
 ssize_t lthread_readline(int fd, char **buf, size_t max, uint64_t timeout);
@@ -110,6 +111,8 @@ int lthread_compute_begin(void);
 void lthread_compute_end(void);
 
 int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+
+void lthread_print_timestamp(const char *msg);
 
 #ifdef __cplusplus
 }

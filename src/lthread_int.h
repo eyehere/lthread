@@ -214,7 +214,7 @@ inline int  _restore_exec_state(struct lthread *lt);
 int         _switch(struct cpu_ctx *new_ctx, struct cpu_ctx *cur_ctx);
 int         _save_exec_state(struct lthread *lt);
 void        _lthread_compute_add(struct lthread *lt);
-void         _lthread_io_worker_init();
+void        _lthread_io_worker_init();
 
 extern pthread_key_t lthread_sched_key;
 void print_timestamp(char *);
