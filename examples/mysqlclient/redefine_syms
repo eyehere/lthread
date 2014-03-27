@@ -1,0 +1,9 @@
+connect lthread_connect_posix
+recv lthread_recv_posix
+write lthread_write
+read lthread_read_posix
+socket lthread_socket
+pipe lthread_pipe
+poll lthread_poll
+send lthread_send
+close lthread_close

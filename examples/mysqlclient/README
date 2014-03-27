@@ -1,0 +1,14 @@
+
+Implemented approach that i first time saw in ribs2 - it's called 'ribify' there.
+The point is to make any library, written in blocked io, to be able to work with lthread
+in true asynchronous style, without blocking the os thread. It is achieved by replacing
+standard socket api functions by it's lthread analogs. For this to happen, some missing
+functions was added in lthread library.
+
+First, run the lthread.sql to create database and the user:
+$ msyql -u root -p < lthread.sql
+
+To compile the example, mysqlclient/mariadbclient dev package should be installed.
+Tested on mariadb client 5.5.36, but should work on any version.
+
+To build, simply type make.
