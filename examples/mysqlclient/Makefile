@@ -2,7 +2,7 @@ REDEFINE_INFO := redefine_syms
 MYSQLCLI_ORIGIN := /usr/lib/libmysqlclient.a
 MYSQLCLI_LIB := libmysqlclient.a
 CFLAGS := -std=gnu99 -O1 -g -Wall -pipe -I../../src/ $(filter -I%, $(shell mysql_config --cflags))
-LDFLAGS := -lpthread -lz -lm -lssl -lcrypto -ldl $(MYSQLCLI_LIB) ../../liblthread.a
+LDFLAGS := $(filter-out -lmysqlclient, $(shell mysql_config --libs)) $(MYSQLCLI_LIB) ../../liblthread.a
 SOURCES := $(wildcard *.c)
 OBJS := $(patsubst %.c, %.o, $(SOURCES))
 TARGET := mysql_lthread

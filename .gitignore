@@ -15,3 +15,8 @@ Makefile.in
 missing
 src/.deps
 src/.libs
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+*.a
+*.o
