@@ -105,8 +105,10 @@ _lthread_poll(void)
     ret = _lthread_poller_poll(t);
 
     if (ret == -1) {
-        perror("error adding events to kevent");
-        assert(0);
+        int errcode = errno;
+        perror("error on poller function call");
+        if (errcode != EINTR)
+            assert(0);
     }
 
     sched->nevents = 0;
