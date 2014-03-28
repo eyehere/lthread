@@ -3,6 +3,16 @@ project (lthread)
 SET(CMAKE_BUILD_TYPE release)
 SET(CMAKE_C_FLAGS_RELEASE "-Werror -g -Wall")
 
+# maybe i got this wrong, but looks like a cmake bug
+# without this set, option will be constantly on :\
+SET(SOCKET_PASSTHROUGH "OFF")
+option(SOCKET_PASSTHROUGH "lthread socket functions passthrough feature" OFF)
+
+if(SOCKET_PASSTHROUGH)
+  add_definitions(-DLTHREAD_SOCKET_PASSTHROUGH)
+endif(SOCKET_PASSTHROUGH)
+message("Socket functions passthrough feature ${SOCKET_PASSTHROUGH}")
+
 set(lthread_files src/lthread.c src/lthread_socket.c
                   src/lthread_sched.c src/lthread_io.c
                   src/lthread_poller.c src/lthread_compute.c

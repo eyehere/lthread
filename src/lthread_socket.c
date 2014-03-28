@@ -50,8 +50,21 @@
 /* FIXME check for EWOULDBLOCK along with EAGAIN? */
 /* TODO obtain timeout from fd for all *_posix functions? */
 
+#ifdef LTHREAD_SOCKET_PASSTHROUGH
+/* let symbol-modified librarys work outside the lthread */
+#define LTHREAD_SOCKET_CHECK_SCHED(y)                       \
+    if (1) {                                                \
+        struct lthread_sched *sched = lthread_get_sched();  \
+        if (!sched || !sched->current_lthread)              \
+            return (y);                                     \
+    }
+#else
+#define LTHREAD_SOCKET_CHECK_SCHED(y)
+#endif
+
 #define LTHREAD_RECV(x, y, t)                               \
 x {                                                         \
+    LTHREAD_SOCKET_CHECK_SCHED(y);                          \
     ssize_t ret = 0;                                        \
     struct lthread *lt = lthread_get_sched()->current_lthread;   \
     while (1) {                                             \
@@ -103,6 +116,7 @@ x {                                                         \
 x {                                                         \
     ssize_t ret = 0;                                        \
     ssize_t sent = 0;                                       \
+    LTHREAD_SOCKET_CHECK_SCHED(y);                          \
     struct lthread *lt = lthread_get_sched()->current_lthread;   \
     while (sent != length) {                                \
         if (lt->state & BIT(LT_ST_FDEOF))                   \
@@ -143,6 +157,7 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 1 };
 int
 lthread_accept(int fd, struct sockaddr *addr, socklen_t *len)
 {
+    LTHREAD_SOCKET_CHECK_SCHED(accept(fd, addr, len));
     int ret = -1;
     struct lthread *lt = lthread_get_sched()->current_lthread;
 
@@ -186,6 +201,7 @@ lthread_accept(int fd, struct sockaddr *addr, socklen_t *len)
 int
 lthread_close(int fd)
 {
+    LTHREAD_SOCKET_CHECK_SCHED(close(fd));
     struct lthread *lt = NULL;
 
     /* wake up the lthreads waiting on this fd and notify them of close */
@@ -217,6 +233,8 @@ lthread_socket(int domain, int type, int protocol)
         perror("Failed to create a new socket");
         return (-1);
     }
+
+    LTHREAD_SOCKET_CHECK_SCHED(fd);
 
     if ((fcntl(fd, F_SETFL, O_NONBLOCK)) == -1) {
         close(fd);
@@ -277,6 +295,8 @@ lthread_pipe(int fildes[2])
     ret = pipe(fildes);
     if (ret != 0)
         return (ret);
+
+    LTHREAD_SOCKET_CHECK_SCHED(ret);
 
     ret = fcntl(fildes[0], F_SETFL, O_NONBLOCK);
     if (ret != 0)
@@ -384,6 +404,7 @@ static inline int
 _lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
     uint64_t timeout)
 {
+    LTHREAD_SOCKET_CHECK_SCHED(connect(fd, name, namelen));
     int ret = 0;
     struct lthread *lt = lthread_get_sched()->current_lthread;
 
@@ -486,6 +507,7 @@ lthread_sendfile(int fd, int s, off_t offset, size_t nbytes,
 #endif
 
 int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout) {
+    LTHREAD_SOCKET_CHECK_SCHED(poll(fds, nfds, timeout));
     struct lthread *lt = lthread_get_sched()->current_lthread;
     _lthread_renice(lt); /* doubt if it's necessary */
 
