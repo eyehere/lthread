@@ -112,7 +112,7 @@ _lthread_poll(void)
     }
 
     sched->nevents = 0;
-    sched->num_new_events = ret;
+    sched->num_new_events = ret == -1 ? 0 : ret;
 
     return (0);
 }
@@ -387,6 +387,7 @@ _lthread_desched_events(int fd) {
         }
     }
 
+    _lthread_desched_sleep(tgt);
     return tgt;
 }
 
