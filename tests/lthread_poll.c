@@ -41,7 +41,7 @@ _proto_write(int fd, void *buf, size_t size, const char *ident) {
     int ret = lthread_write(fd, buf, size);
     /* int ret = lthread_send(fd, buf, size, 0); */
     if (ret == -1)
-        fprintf(stderr, "%s: error reading: %s\n", ident, strerror(errno));
+        fprintf(stderr, "%s: error writing: %s\n", ident, strerror(errno));
     return ret;
 }
 

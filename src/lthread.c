@@ -231,7 +231,18 @@ _lthread_key_create(void)
 int
 lthread_init(size_t size)
 {
+    assert(pthread_once(&key_once, _lthread_key_create) == 0);
+    /*
+     * If multiple schedulers in different pthreads are running,
+     * initialize the key for each of them.
+     */
+    assert(pthread_setspecific(lthread_sched_key, NULL) == 0);
     return (sched_create(size));
+}
+
+/* Not sure if that's necessary, but it'll reside here for some time */
+void lthread_library_init(void) {
+    assert(pthread_once(&key_once, _lthread_key_create) == 0);
 }
 
 static void
@@ -331,10 +342,13 @@ lthread_create(struct lthread **new_lt, void *fun, void *arg)
         return (errno);
     }
 
-    if (posix_memalign(&lt->stack, getpagesize(), sched->stack_size)) {
+    int ret = posix_memalign(&lt->stack, getpagesize(), sched->stack_size);
+    if (ret) {
         free(lt);
-        perror("Failed to allocate stack for new lthread");
-        return (errno);
+        fprintf(stderr,
+                "Failed to allocate stack %d, pagesize %d for new lthread"
+                "(errno code %d)\n", sched->stack_size, getpagesize(), ret);
+        return (ret);
     }
 
     lt->sched = sched;
@@ -366,7 +380,8 @@ lthread_get_data(void)
 struct lthread*
 lthread_current(void)
 {
-    return (lthread_get_sched()->current_lthread);
+    struct lthread_sched *sched = lthread_get_sched();
+    return sched ? sched->current_lthread : NULL;
 }
 
 void

@@ -1,10 +1,12 @@
 cmake_minimum_required (VERSION 2.6)
 project (lthread)
+SET(CMAKE_C_FLAGS_RELEASE "-O2 -finline-functions -g -Werror -Wall")
+SET(CMAKE_C_FLAGS_DEBUG "-O0 -g -Werror -Wall")
 SET(CMAKE_BUILD_TYPE release)
-SET(CMAKE_C_FLAGS_RELEASE "-Werror -g -Wall")
+#SET(CMAKE_VERBOSE_MAKEFILE "on")
 
 # maybe i got this wrong, but looks like a cmake bug
-# without this set, option will be constantly on :\
+# without this 'set', option will be constantly on :\
 SET(SOCKET_PASSTHROUGH "OFF")
 option(SOCKET_PASSTHROUGH "lthread socket functions passthrough feature" OFF)
 
@@ -18,7 +20,6 @@ set(lthread_files src/lthread.c src/lthread_socket.c
                   src/lthread_poller.c src/lthread_compute.c
                   src/cfuhash/cfuhash.c)
 add_library(lthread  ${lthread_files})
-set_property(SOURCE ${lthread_files} PROPERTY COMPILE_FLAGS "-O2")
 
 install(TARGETS lthread DESTINATION lib)
 install(FILES src/lthread.h DESTINATION include)

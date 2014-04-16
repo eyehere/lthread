@@ -244,7 +244,12 @@ lthread_run(void)
             }
             is_eof = 0;
 
+/* this assert is not necessary when using multiple schedulers in multiple threads */
+/*
+            if (lt_write == NULL && lt_read == NULL)
+                fprintf(stderr, "sched %p, fd %d, new events %d\n", sched, fd, sched->num_new_events);
             assert(lt_write != NULL || lt_read != NULL);
+*/
         }
     }
 
@@ -335,8 +340,33 @@ _lthread_sched_event(struct lthread *lt, int fd, enum lthread_event e,
     lt->state &= CLEARBIT(st);
 }
 
+#ifdef LTHREAD_DEBUG
+struct lthread *lthread_current();
+
+int fe_fn(void *key, size_t key_size, void *data, size_t data_size, void *arg) {
+    if (data == arg) {
+        fprintf(stdout, "(%X) found not deleted lthread entry %lld %p in hash table!\n", (unsigned int) pthread_self(), *((int64_t *) key), data);
 /*
- * Deschedules the events by removing the chain of fd -> lt nodes from hash table.
+        struct lthread_sched *sched = lthread_get_sched();
+        FILE *fp = fopen("/tmp/ht.fault", "w");
+        cfuhash_pretty_print(sched->waiting_multi, fp);
+        fflush(fp);
+        fclose(fp);
+*/
+        assert(0);
+    }
+    return 0;
+}
+
+void _lthread_check_ht(void) {
+    struct lthread_sched *sched = lthread_get_sched();
+    struct lthread *tgt = lthread_current();
+    cfuhash_foreach(sched->waiting_multi, fe_fn, tgt);
+}
+#endif
+
+/*
+ * Deschedules the events by removing the chain of (fd, ev) -> lt nodes from hash table.
  * hash table check by fd is done. If ltread is there, process all it's fds, and mark
  * them as invalid sockets in eventlist, so lthread_run()'ll just skip'em
  */
@@ -355,21 +385,32 @@ _lthread_desched_events(int fd) {
 
     struct pollfd *fds = tgt->multiple_evs;
     nfds_t i, nfds = tgt->multiple_evs_count;
+    void (*poller_ev_clear)(int fd);
+    enum lthread_event ev;
 
     for (i = 0; i < nfds; i++) {
+        if (INVALID_SOCKET(fds[i].fd))
+            continue;
+
         /* determine the event type from the user given array */
         if (fds[i].events & POLLIN) {
-            key = FD_KEY(fds[i].fd, LT_EV_READ);
+            ev = LT_EV_READ;
+            poller_ev_clear = _lthread_poller_ev_clear_rd;
         } else if (fds[i].events & POLLOUT) {
-            key = FD_KEY(fds[i].fd, LT_EV_WRITE);
+            ev = LT_EV_WRITE;
+            poller_ev_clear = _lthread_poller_ev_clear_wr;
+        } else {
+            assert(0);
         }
+        key = FD_KEY(fds[i].fd, ev);
 
         /* delete hash table entries and fill in the user's struct pollfd */
-        cfuhash_delete_data(sched->waiting_multi, &key, sizeof(key));
+        assert(cfuhash_delete_data(sched->waiting_multi, &key, sizeof(key)));
+        poller_ev_clear(fds[i].fd);
 
-        int evidx;
+        int evidx, expired = tgt->state & BIT(LT_ST_EXPIRED);
 
-        for (evidx = sched->num_new_events; evidx >= 0; evidx--) {
+        for (evidx = sched->num_new_events; !expired && evidx >= 0; evidx--) {
             if (!INVALID_SOCKET(fds[i].fd) && fds[i].fd == _lthread_poller_ev_get_fd(&sched->eventlist[evidx])) {
                 _lthread_poller_ev_set_fd(&sched->eventlist[evidx], -1); /* mark each poll-related fd to be skipped in sched->eventlist */
                 tgt->multiple_evs_ready++; /* optimistically increase events count :] */
@@ -388,6 +429,10 @@ _lthread_desched_events(int fd) {
     }
 
     _lthread_desched_sleep(tgt);
+#ifdef LTHREAD_DEBUG
+    _lthread_check_ht();
+#endif
+
     return tgt;
 }
 
@@ -398,11 +443,7 @@ _lthread_desched_events(int fd) {
 int
 _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    if (timeout == 0)
-        return poll(fds, nfds, 0);
-
     struct lthread_sched *sched = lthread_get_sched();
-    /* struct lthread *lt_tmp = NULL; */
     enum lthread_st st = LT_ST_WAIT_MULTIPLE;
 
     lt->state |= BIT(st);
@@ -439,10 +480,29 @@ _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, 
     }
 
     _lthread_sched_sleep(lt, (uint64_t) timeout);
+    int ret = lt->multiple_evs_ready;
+
+    /*
+     * Handle the case when lthread_poll() timed out. This way,
+     * no _lthread_desched_events() will be called inside the scheduler.
+     */
+    if (lt->state & BIT(LT_ST_EXPIRED)) {
+        nfds_t i;
+        lt->multiple_evs = fds;
+        lt->multiple_evs_count = nfds;
+
+        for (i = 0; i < nfds; i++) {
+            if (!INVALID_SOCKET(fds[i].fd))
+                break;
+        }
+        if (i < nfds) {
+            assert(_lthread_desched_events(fds[i].fd));
+        }
+    }
+
     lt->state &= CLEARBIT(st);
     lt->multiple_evs = NULL;
     lt->multiple_evs_count = 0;
-    int ret = lt->multiple_evs_ready;
     lt->multiple_evs_ready = 0;
 
     return ret;

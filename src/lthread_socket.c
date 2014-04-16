@@ -34,6 +34,7 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <string.h>
 
 #include <sys/socket.h>
 #include <fcntl.h>
@@ -181,7 +182,7 @@ lthread_accept(int fd, struct sockaddr *addr, socklen_t *len)
         }
 
         if (ret == -1 && errno != EWOULDBLOCK) {
-            perror("Cannot accept connection");
+            fprintf(stderr, "Cannot accept connection on %d: %s\n", fd, strerror(errno));
             return (-1);
         }
 
@@ -507,6 +508,9 @@ lthread_sendfile(int fd, int s, off_t offset, size_t nbytes,
 #endif
 
 int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout) {
+    if (timeout == 0)
+        return poll(fds, nfds, 0);
+
     LTHREAD_SOCKET_CHECK_SCHED(poll(fds, nfds, timeout));
     struct lthread *lt = lthread_get_sched()->current_lthread;
     _lthread_renice(lt); /* doubt if it's necessary */

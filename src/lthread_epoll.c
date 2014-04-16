@@ -54,6 +54,7 @@ _lthread_poller_ev_clear_rd(int fd)
     int ret = 0;
     struct lthread_sched *sched = lthread_get_sched();
 
+    ev.data.u64 = 0; /* without it, there s uninitialised variable warning with valgrind */
     ev.data.fd = fd;
     ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_DEL, fd, &ev);
@@ -67,6 +68,7 @@ _lthread_poller_ev_clear_wr(int fd)
     int ret = 0;
     struct lthread_sched *sched = lthread_get_sched();
 
+    ev.data.u64 = 0;
     ev.data.fd = fd;
     ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_DEL, fd, &ev);
@@ -97,6 +99,7 @@ _lthread_poller_ev_register_wr(int fd)
     struct lthread_sched *sched = lthread_get_sched();
 
     ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP;
+    ev.data.u64 = 0;
     ev.data.fd = fd;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_MOD, fd, &ev);
     if (ret < 0)
@@ -152,7 +155,7 @@ _lthread_poller_ev_register_trigger(void)
         assert(sched->eventfd != -1);
     }
     ev.events = EPOLLIN;
-    ev.data.u64 = 0; /* without it, there s uninitialised variable warning with valgrind */
+    ev.data.u64 = 0;
     ev.data.fd = sched->eventfd;
     ret = epoll_ctl(sched->poller_fd, EPOLL_CTL_ADD, sched->eventfd, &ev);
     assert(ret != -1);
