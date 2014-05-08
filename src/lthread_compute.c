@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include "lthread.h"
 #include "lthread_int.h"
 
 enum {THREAD_TIMEOUT_BEFORE_EXIT = 60};
@@ -282,4 +283,20 @@ _lthread_compute_run(void *arg)
 
 
     return NULL;
+}
+
+void lthread_freeze(void) {
+    struct lthread *lt = lthread_current();
+    LIST_INSERT_HEAD(&lt->sched->busy, lt, busy_next);
+    _lthread_yield(lt);
+}
+
+void lthread_unfreeze(struct lthread *lt) {
+    /* resume it back on the  prev scheduler */
+    assert(pthread_mutex_lock(&lt->sched->defer_mutex) == 0);
+    TAILQ_INSERT_TAIL(&lt->sched->defer, lt, defer_next);
+    assert(pthread_mutex_unlock(&lt->sched->defer_mutex) == 0);
+
+    /* signal the prev scheduler in case it was sleeping in a poll */
+    _lthread_poller_ev_trigger(lt->sched);
 }

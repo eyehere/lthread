@@ -76,8 +76,6 @@ static int  _lthread_poll(void);
 static void _lthread_resume_expired(struct lthread_sched *sched);
 static inline int _lthread_sched_isdone(struct lthread_sched *sched);
 
-static struct lthread find_lt;
-
 static int
 _lthread_poll(void)
 {
@@ -244,7 +242,7 @@ lthread_run(void)
             }
             is_eof = 0;
 
-/* this assert is not necessary when using multiple schedulers in multiple threads */
+            /* this assert is not necessary when using multiple schedulers in multiple threads */
 /*
             if (lt_write == NULL && lt_read == NULL)
                 fprintf(stderr, "sched %p, fd %d, new events %d\n", sched, fd, sched->num_new_events);
@@ -290,6 +288,9 @@ _lthread_desched_event(int fd, enum lthread_event e)
 {
     struct lthread *lt = NULL;
     struct lthread_sched *sched = lthread_get_sched();
+    struct lthread find_lt;
+
+    memset(&find_lt, 0, sizeof(find_lt));
     find_lt.fd_wait = FD_KEY(fd, e);
 
     lt = RB_FIND(lthread_rb_wait, &sched->waiting, &find_lt);

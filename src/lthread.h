@@ -104,13 +104,16 @@ ssize_t lthread_writev(int fd, struct iovec *iov, int iovcnt);
 int     lthread_sendfile(int fd, int s, off_t offset, size_t nbytes,
     struct sf_hdtr *hdtr);
 #endif
+int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+
 ssize_t lthread_io_write(int fd, void *buf, size_t nbytes);
 ssize_t lthread_io_read(int fd, void *buf, size_t nbytes);
 
 int lthread_compute_begin(void);
 void lthread_compute_end(void);
 
-int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+void lthread_freeze(void);
+void lthread_unfreeze(struct lthread *lt);
 
 void lthread_print_timestamp(const char *msg);
 

@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 2.6)
 project (lthread)
-SET(CMAKE_C_FLAGS_RELEASE "-O2 -finline-functions -g -Werror -Wall")
+SET(CMAKE_C_FLAGS "")
+SET(CMAKE_C_FLAGS_RELEASE "-O2 -g -finline-functions -Werror -Wall")
 SET(CMAKE_C_FLAGS_DEBUG "-O0 -g -Werror -Wall")
 SET(CMAKE_BUILD_TYPE release)
 #SET(CMAKE_VERBOSE_MAKEFILE "on")
@@ -14,6 +15,15 @@ if(SOCKET_PASSTHROUGH)
   add_definitions(-DLTHREAD_SOCKET_PASSTHROUGH)
 endif(SOCKET_PASSTHROUGH)
 message("Socket functions passthrough feature ${SOCKET_PASSTHROUGH}")
+
+SET(SOCKET_TIMEO "OFF")
+option(SOCKET_TIMEO "lthread socket functions timeout feature" OFF)
+
+if(SOCKET_TIMEO)
+  add_definitions(-DLTHREAD_TIMEOUT_FROM_SOCKET)
+endif(SOCKET_TIMEO)
+message("Socket timeout feature ${SOCKET_TIMEO}")
+
 
 set(lthread_files src/lthread.c src/lthread_socket.c
                   src/lthread_sched.c src/lthread_io.c
