@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.6)
 project (lthread)
-SET(CMAKE_C_FLAGS "")
-SET(CMAKE_C_FLAGS_RELEASE "-O2 -g -finline-functions -Werror -Wall")
+SET(CMAKE_C_FLAGS "-pipe")
+SET(CMAKE_C_FLAGS_RELEASE "-O3 -g -mmmx -msse -mfpmath=sse -Werror -Wall")
 SET(CMAKE_C_FLAGS_DEBUG "-O0 -g -Werror -Wall")
 SET(CMAKE_BUILD_TYPE release)
 #SET(CMAKE_VERBOSE_MAKEFILE "on")
@@ -22,7 +22,7 @@ option(SOCKET_TIMEO "lthread socket functions timeout feature" OFF)
 if(SOCKET_TIMEO)
   add_definitions(-DLTHREAD_TIMEOUT_FROM_SOCKET)
 endif(SOCKET_TIMEO)
-message("Socket timeout feature ${SOCKET_TIMEO}")
+message("Socket functions timeout feature ${SOCKET_TIMEO}")
 
 
 set(lthread_files src/lthread.c src/lthread_socket.c

@@ -346,7 +346,7 @@ lthread_create(struct lthread **new_lt, void *fun, void *arg)
     if (ret) {
         free(lt);
         fprintf(stderr,
-                "Failed to allocate stack %d, pagesize %d for new lthread"
+                "Failed to allocate stack %zu, pagesize %d for new lthread"
                 "(errno code %d)\n", sched->stack_size, getpagesize(), ret);
         return (ret);
     }
