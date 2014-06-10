@@ -1,6 +1,59 @@
 lthread
 =======
 
+What this fork brings
+------------
+
+* ability to run lthread schedulers in multiple pthreads, thus loading multiple cpu cores
+* lthread_poll() & socket api functions with "_posix" postfix, which allows to use third party libraries with
+lthread. libmysqlclient example is provided.
+* fixed several uninitialised data warnings by valgrind
+* fixes for error handling & reporting
+* behavior fixes:
+  write calls return -1 & EPIPE on eof
+  read calls return 0 on eof
+* couple of build options described below
+
+
+```C
+/*
+ * standard functions, which allows to use lthread in more complex
+ * solutions than just network io
+ */
+int lthread_connect_posix(int fd, struct sockaddr *, socklen_t);
+ssize_t lthread_recv_posix(int fd, void *buf, size_t length, int flags);
+ssize_t lthread_read_posix(int fd, void *buf, size_t length);
+ssize_t lthread_recvmsg_posix(int fd, struct msghdr *message, int flags);
+ssize_t lthread_recvfrom_posix(int fd, void *buf, size_t length, int flags);
+
+/*
+ * It's a very convenient and necessary function for lthread itself,
+ * cause it's not often the best choice to create a thread for processing each separate descriptor.
+ * I know you kidz cried at night, wanted to see lthread_poll() - so here you are ;]
+ */
+int lthread_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+
+/*
+ * Working concept of freezing/unfreezing lthread, though it works not as fast I expected.
+ */
+void lthread_freeze(void);
+void lthread_unfreeze(struct lthread *lt);
+```
+
+Build options:
+
+All options added is disabled by default.
+
+* SOCKET_PASSTHROUGH - This option allows to use lthread socket functions outside the lthread scheduler. In this case, original functions will be called. It was made to make lthread usage possible with different libraries, such as libmysqlclient and so on.
+* SOCKET_TIMEO - This option allows lthread to "see" the timeout, that was set on socket with setsockopt(), preventing infinite waits. This option is necessary for the third-party libraries case when "*_posix" function variants is getting called, which just can't accept the explicit timeout value.
+
+Usage:
+
+$ cmake -DSOCKET_PASSTHROUGH=ON -DSOCKET_TIMEO=ON
+$ make
+
+Original lthread README goes further.
+
 Introduction
 ------------
 

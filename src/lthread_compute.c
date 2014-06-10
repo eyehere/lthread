@@ -37,7 +37,6 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "lthread.h"
 #include "lthread_int.h"
 
 enum {THREAD_TIMEOUT_BEFORE_EXIT = 60};
@@ -284,6 +283,9 @@ _lthread_compute_run(void *arg)
 
     return NULL;
 }
+
+
+struct lthread *lthread_current();
 
 void lthread_freeze(void) {
     struct lthread *lt = lthread_current();

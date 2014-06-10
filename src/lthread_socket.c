@@ -505,6 +505,7 @@ lthread_connect_posix(int fd, struct sockaddr *name, socklen_t namelen)
 ssize_t
 lthread_writev(int fd, struct iovec *iov, int iovcnt)
 {
+    LTHREAD_SOCKET_CHECK_SCHED(writev(fd, iov, iovcnt));
     ssize_t total = 0;
     int iov_index = 0;
     struct lthread *lt = lthread_get_sched()->current_lthread;

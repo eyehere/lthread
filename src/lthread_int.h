@@ -204,7 +204,7 @@ void        _lthread_sched_sleep(struct lthread *lt, uint64_t msecs);
 void        _lthread_sched_busy_sleep(struct lthread *lt, uint64_t msecs);
 void        _lthread_cancel_event(struct lthread *lt);
 struct lthread* _lthread_desched_event(int fd, enum lthread_event e);
-struct lthread* _lthread_desched_events(int fd);
+struct lthread* _lthread_desched_events(int fd, int lt_expired);
 void        _lthread_sched_event(struct lthread *lt, int fd,
                                  enum lthread_event e, uint64_t timeout);
 int         _lthread_sched_events_poll(struct lthread *lt,

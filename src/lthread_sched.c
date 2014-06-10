@@ -221,7 +221,7 @@ lthread_run(void)
              * per-lthread multiple events handling: all fds belonging to signle lthread
              * will be handled at 1 invocation of _lthread_desched_events()
              */
-            lt = _lthread_desched_events(fd);
+            lt = _lthread_desched_events(fd, 0);
             if (lt) {
                 _lthread_resume(lt);
                 continue;
@@ -290,7 +290,8 @@ _lthread_desched_event(int fd, enum lthread_event e)
     struct lthread_sched *sched = lthread_get_sched();
     struct lthread find_lt;
 
-    memset(&find_lt, 0, sizeof(find_lt));
+    /* memset not needed? */
+    /* memset(&find_lt, 0, sizeof(find_lt)); */
     find_lt.fd_wait = FD_KEY(fd, e);
 
     lt = RB_FIND(lthread_rb_wait, &sched->waiting, &find_lt);
@@ -372,16 +373,26 @@ void _lthread_check_ht(void) {
  * them as invalid sockets in eventlist, so lthread_run()'ll just skip'em
  */
 struct lthread *
-_lthread_desched_events(int fd) {
+_lthread_desched_events(int fd, int lt_expired) {
     struct lthread_sched *sched = lthread_get_sched();
     struct lthread *tgt = NULL;
     int64_t key;
 
-    key = FD_KEY(fd, LT_EV_READ);
-    if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0) {
-        key = FD_KEY(fd, LT_EV_WRITE);
+    /* determine hash table key from poller if it returned with results */
+    if (!lt_expired) {
+        if (_lthread_poller_ev_is_read(&sched->eventlist[sched->num_new_events]))
+            key = FD_KEY(fd, LT_EV_READ);
+        else if (_lthread_poller_ev_is_write(&sched->eventlist[sched->num_new_events]))
+            key = FD_KEY(fd, LT_EV_WRITE);
         if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0)
             return NULL;
+    } else { /* other way, try both cases */
+        key = FD_KEY(fd, LT_EV_READ);
+        if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0) {
+            key = FD_KEY(fd, LT_EV_WRITE);
+            if (cfuhash_get_data(sched->waiting_multi, &key, sizeof(key), (void **) &tgt, NULL) == 0)
+                return NULL;
+        }
     }
 
     struct pollfd *fds = tgt->multiple_evs;
@@ -409,9 +420,9 @@ _lthread_desched_events(int fd) {
         assert(cfuhash_delete_data(sched->waiting_multi, &key, sizeof(key)));
         poller_ev_clear(fds[i].fd);
 
-        int evidx, expired = tgt->state & BIT(LT_ST_EXPIRED);
+        int evidx; /* now, fill in users structure if the call wasn't expired */
 
-        for (evidx = sched->num_new_events; !expired && evidx >= 0; evidx--) {
+        for (evidx = sched->num_new_events; !lt_expired && evidx >= 0; evidx--) {
             if (!INVALID_SOCKET(fds[i].fd) && fds[i].fd == _lthread_poller_ev_get_fd(&sched->eventlist[evidx])) {
                 _lthread_poller_ev_set_fd(&sched->eventlist[evidx], -1); /* mark each poll-related fd to be skipped in sched->eventlist */
                 tgt->multiple_evs_ready++; /* optimistically increase events count :] */
@@ -497,7 +508,7 @@ _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, 
                 break;
         }
         if (i < nfds) {
-            assert(_lthread_desched_events(fds[i].fd));
+            assert(_lthread_desched_events(fds[i].fd, 1));
         }
     }
 
