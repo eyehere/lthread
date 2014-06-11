@@ -9,8 +9,8 @@ What this fork brings
 lthread. libmysqlclient example is provided.
 * fixed several uninitialised data warnings by valgrind
 * fixes for error handling & reporting
-* behavior fixes:
-  write calls return -1 & EPIPE on eof
+* behavior fixes:<br>
+  write calls return -1 & EPIPE on eof<br>
   read calls return 0 on eof
 * couple of build options described below
 
@@ -40,7 +40,7 @@ void lthread_freeze(void);
 void lthread_unfreeze(struct lthread *lt);
 ```
 
-Build options:
+### Build options:
 
 All options added is disabled by default.
 
@@ -49,8 +49,10 @@ All options added is disabled by default.
 
 Usage:
 
+```
 $ cmake -DSOCKET_PASSTHROUGH=ON -DSOCKET_TIMEO=ON
 $ make
+```
 
 Original lthread README goes further.
 
