@@ -193,7 +193,7 @@ struct lthread_sched {
 int         sched_create(size_t stack_size);
 
 int         _lthread_resume(struct lthread *lt);
-inline void _lthread_renice(struct lthread *lt);
+void        _lthread_renice(struct lthread *lt);
 void        _sched_free(struct lthread_sched *sched);
 void        _lthread_del_event(struct lthread *lt);
 
@@ -210,7 +210,6 @@ void        _lthread_sched_event(struct lthread *lt, int fd,
 int         _lthread_sched_events_poll(struct lthread *lt,
                                        struct pollfd *fds, nfds_t nfds, int timeout);
 
-inline int  _restore_exec_state(struct lthread *lt);
 int         _switch(struct cpu_ctx *new_ctx, struct cpu_ctx *cur_ctx);
 int         _save_exec_state(struct lthread *lt);
 void        _lthread_compute_add(struct lthread *lt);

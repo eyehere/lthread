@@ -100,17 +100,23 @@ _lthread_poll(void)
         t.tv_sec = 0;
     }
 
-    ret = _lthread_poller_poll(t);
+    int i;
+    for (i = 0; i < 1024; i++) {
+        ret = _lthread_poller_poll(t);
 
-    if (ret == -1) {
-        int errcode = errno;
-        perror("error on poller function call");
-        if (errcode != EINTR)
-            assert(0);
+        if (ret == -1) {
+            int errcode = errno;
+            if (errcode == EINTR)
+                continue;
+            else
+                assert(0);
+        }
+
+        break;
     }
 
     sched->nevents = 0;
-    sched->num_new_events = ret == -1 ? 0 : ret;
+    sched->num_new_events = ret;
 
     return (0);
 }

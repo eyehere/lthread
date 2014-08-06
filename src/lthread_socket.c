@@ -64,16 +64,18 @@
 
 /* obtain timeout from fd, if zero is given; critical for usage with openssl */
 #ifdef LTHREAD_TIMEOUT_FROM_SOCKET
-static uint64_t /* inline here! */
+static inline uint64_t
 socket_get_timeout(int fd, int timeo_name, uint64_t timeo) {
     if (timeo)
         return timeo;
+
     struct timeval tv;
     socklen_t optlen = sizeof(tv);
     if (getsockopt(fd, SOL_SOCKET, timeo_name, &tv, &optlen) == 0) {
         return (tv.tv_sec * 1000 + tv.tv_usec / 1000);
     } else {
-        perror("getsockopt");
+        if (errno != ENOTSOCK)
+            perror("lthread getsockopt");
         return 0;
     }
 }
