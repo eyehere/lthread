@@ -116,7 +116,7 @@ _lthread_poll(void)
     }
 
     sched->nevents = 0;
-    sched->num_new_events = ret;
+    sched->num_new_events = ret == -1 ? 0 : ret;
 
     return (0);
 }
@@ -207,7 +207,7 @@ lthread_run(void)
             p = --sched->num_new_events;
 
             fd = _lthread_poller_ev_get_fd(&sched->eventlist[p]);
-            if (INVALID_SOCKET(fd)) /* skip already processed sockets by _lthread_desched_events() */
+            if (INVALID_SOCKET(fd)) /* skip sockets that was already processed by _lthread_desched_events() */
                 continue;
 
             /* 
@@ -229,7 +229,8 @@ lthread_run(void)
              */
             lt = _lthread_desched_events(fd, 0);
             if (lt) {
-                _lthread_resume(lt);
+                TAILQ_INSERT_TAIL(&lt->sched->ready, lt, ready_next);
+                /* _lthread_resume(lt); */
                 continue;
             }
 
@@ -265,7 +266,7 @@ lthread_run(void)
 /*
  * Cancels registered event in poller and deschedules (fd, ev) -> lt from
  * rbtree. This is safe to be called even if the lthread wasn't waiting on an
- * event.
+ * event. Lthreads waiting on multiple fds is handled either.
  */
 void
 _lthread_cancel_event(struct lthread *lt)
@@ -276,6 +277,17 @@ _lthread_cancel_event(struct lthread *lt)
     } else if (lt->state & BIT(LT_ST_WAIT_WRITE)) {
         _lthread_poller_ev_clear_wr(FD_ONLY(lt->fd_wait));
         lt->state &= CLEARBIT(LT_ST_WAIT_WRITE);
+    } else if (lt->state & BIT(LT_ST_WAIT_MULTIPLE)) {
+        nfds_t i, nfds = lt->multiple_evs_count;
+        struct pollfd *fds = lt->multiple_evs;
+
+        for (i = 0; i < nfds; i++) {
+            if (!INVALID_SOCKET(fds[i].fd)) {
+                if (!_lthread_desched_events(fds[i].fd, 1))
+                    assert(0);
+                break;
+            }
+        }
     }
 
     if (lt->fd_wait >= 0)
@@ -377,6 +389,8 @@ void _lthread_check_ht(void) {
  * Deschedules the events by removing the chain of (fd, ev) -> lt nodes from hash table.
  * hash table check by fd is done. If ltread is there, process all it's fds, and mark
  * them as invalid sockets in eventlist, so lthread_run()'ll just skip'em
+ * lt_expired parameter means all polled fds is expired, and function only
+ * does cleanup from poller in that case.
  */
 struct lthread *
 _lthread_desched_events(int fd, int lt_expired) {
@@ -462,9 +476,8 @@ int
 _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, int timeout)
 {
     struct lthread_sched *sched = lthread_get_sched();
-    enum lthread_st st = LT_ST_WAIT_MULTIPLE;
 
-    lt->state |= BIT(st);
+    lt->state |= BIT(LT_ST_WAIT_MULTIPLE);
     lt->fd_wait = -1;
     lt->multiple_evs = fds; /* remember struct pollfd to let in-scheduler pick of all related descriptors effectively */
     lt->multiple_evs_count = nfds;
@@ -504,21 +517,17 @@ _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds, nfds_t nfds, 
      * Handle the case when lthread_poll() timed out. This way,
      * no _lthread_desched_events() will be called inside the scheduler.
      */
-    if (lt->state & BIT(LT_ST_EXPIRED)) {
-        nfds_t i;
-        lt->multiple_evs = fds;
-        lt->multiple_evs_count = nfds;
-
-        for (i = 0; i < nfds; i++) {
-            if (!INVALID_SOCKET(fds[i].fd))
-                break;
+/* MOVED to _lthread_cancel_event()
+    for (i = 0; i < nfds && lt->state & BIT(LT_ST_EXPIRED); i++) {
+        if (!INVALID_SOCKET(fds[i].fd)) {
+            if (!_lthread_desched_events(fds[i].fd, 1))
+                assert(0);
+            break;
         }
-        if (i < nfds) {
-            assert(_lthread_desched_events(fds[i].fd, 1));
         }
-    }
+*/
 
-    lt->state &= CLEARBIT(st);
+    lt->state &= CLEARBIT(LT_ST_WAIT_MULTIPLE);
     lt->multiple_evs = NULL;
     lt->multiple_evs_count = 0;
     lt->multiple_evs_ready = 0;
@@ -555,7 +564,7 @@ _lthread_sched_sleep(struct lthread *lt, uint64_t msecs)
 
     /*
      * if msecs is 0, we won't schedule lthread otherwise loop until
-     * collision resolved(very rare) by incrementing usec++.
+     * collision resolved(very rare) by incrementing sleep_usecs.
      */
     lt->sleep_usecs = _lthread_diff_usecs(lt->sched->birth,
         _lthread_usec_now()) + usecs;
@@ -595,7 +604,6 @@ static void
 _lthread_resume_expired(struct lthread_sched *sched)
 {
     struct lthread *lt = NULL;
-    //struct lthread *lt_tmp = NULL;
     uint64_t t_diff_usecs = 0;
 
     /* current scheduler time */

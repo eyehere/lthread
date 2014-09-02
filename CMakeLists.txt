@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
 project (lthread)
-SET(CMAKE_C_FLAGS "-pipe -fPIC")
-SET(CMAKE_C_FLAGS_RELEASE "-O3 -fomit-frame-pointer -Werror -Wall")
-SET(CMAKE_C_FLAGS_DEBUG "-O0 -g -Werror -Wall")
+SET(CMAKE_C_FLAGS "-pipe -fPIC  -Werror -Wall -Wformat=1 -Wformat-security -Wtype-limits -Wmultichar -Wuninitialized")
+SET(CMAKE_C_FLAGS_RELEASE "-O3 -fomit-frame-pointer")
+SET(CMAKE_C_FLAGS_DEBUG "-O0 -g3 -fno-inline-functions")
 SET(CMAKE_BUILD_TYPE release)
 #SET(CMAKE_VERBOSE_MAKEFILE "on")
 

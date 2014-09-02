@@ -104,7 +104,8 @@ x {                                                         \
             _lthread_sched_event(lt, fd, LT_EV_READ,        \
             LTHREAD_GET_SOCKET_TIMEOUT(fd, SO_RCVTIMEO, t));   \
             if (lt->state & BIT(LT_ST_EXPIRED)) {           \
-                return (-2);                                \
+                errno = ETIMEDOUT;                          \
+                return (-1);                                \
             }                                               \
         }                                                   \
         if (ret >= 0)                                       \
@@ -132,8 +133,10 @@ x {                                                         \
             return (-1);                                    \
         if ((ret == -1 && errno == EAGAIN)) {               \
             _lthread_sched_event(lt, fd, LT_EV_READ, timeout);   \
-            if (lt->state & BIT(LT_ST_EXPIRED))             \
-                return (-2);                                \
+            if (lt->state & BIT(LT_ST_EXPIRED)) {           \
+                errno = ETIMEDOUT;                          \
+                return (-1);                                \
+            }                                               \
         }                                                   \
     }                                                       \
     return (recvd);                                         \
@@ -478,8 +481,10 @@ _lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
             errno == EWOULDBLOCK ||
             errno == EINPROGRESS)) {
             _lthread_sched_event(lt, fd, LT_EV_WRITE, timeout);
-            if (lt->state & BIT(LT_ST_EXPIRED))
-                return (-2);
+            if (lt->state & BIT(LT_ST_EXPIRED)) {
+                errno = ETIMEDOUT;
+                return (-1);
+            }
 
             ret = 0;
             break;

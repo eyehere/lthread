@@ -207,8 +207,8 @@ struct lthread* _lthread_desched_event(int fd, enum lthread_event e);
 struct lthread* _lthread_desched_events(int fd, int lt_expired);
 void        _lthread_sched_event(struct lthread *lt, int fd,
                                  enum lthread_event e, uint64_t timeout);
-int         _lthread_sched_events_poll(struct lthread *lt,
-                                       struct pollfd *fds, nfds_t nfds, int timeout);
+int         _lthread_sched_events_poll(struct lthread *lt, struct pollfd *fds,
+                                       nfds_t nfds, int timeout);
 
 int         _switch(struct cpu_ctx *new_ctx, struct cpu_ctx *cur_ctx);
 int         _save_exec_state(struct lthread *lt);
@@ -235,7 +235,7 @@ _lthread_usec_now(void)
 {
     struct timeval t1 = {0, 0};
     gettimeofday(&t1, NULL);
-    return (t1.tv_sec * 1000000) + t1.tv_usec;
+    return (uint64_t) t1.tv_sec * 1000000 + t1.tv_usec;
 }
 
 #endif
