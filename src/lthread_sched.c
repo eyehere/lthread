@@ -186,7 +186,7 @@ lthread_run(void)
         }
 
         /* 3. resume lthreads we received from lthread_compute, if any */
-        while (1) {
+        while (!TAILQ_EMPTY(&sched->defer)) {
             assert(pthread_mutex_lock(&sched->defer_mutex) == 0);
             lt = TAILQ_FIRST(&sched->defer);
             if (lt == NULL) {
@@ -609,11 +609,7 @@ _lthread_resume_expired(struct lthread_sched *sched)
     /* current scheduler time */
     t_diff_usecs = _lthread_diff_usecs(sched->birth, _lthread_usec_now());
 
-    while (1) {
-        lt = RB_MIN(lthread_rb_sleep, &sched->sleeping);
-        if (lt == NULL)
-            break;
-
+    while ((lt = RB_MIN(lthread_rb_sleep, &sched->sleeping)) != NULL) {
         if (lt->sleep_usecs <= t_diff_usecs) {
             _lthread_cancel_event(lt);
             _lthread_desched_sleep(lt);

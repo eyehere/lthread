@@ -486,8 +486,7 @@ _lthread_connect(int fd, struct sockaddr *name, socklen_t namelen,
                 return (-1);
             }
 
-            ret = 0;
-            break;
+            continue;
         } else {
             break;
         }
