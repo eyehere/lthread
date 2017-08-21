@@ -82,7 +82,6 @@ socket_get_timeout(int fd, int timeo_name, uint64_t timeo) {
 
 #define LTHREAD_GET_SOCKET_TIMEOUT(fd, opt, t) \
     socket_get_timeout(fd, opt, t)
-
 #else
 #define LTHREAD_GET_SOCKET_TIMEOUT(fd, opt, t) t
 #endif
@@ -93,6 +92,8 @@ x {                                                         \
     LTHREAD_SOCKET_CHECK_SCHED(y);                          \
     ssize_t ret = 0;                                        \
     struct lthread *lt = lthread_get_sched()->current_lthread;   \
+                                                            \
+    lt->state &= CLEARBIT(LT_ST_FDEOF);                     \
     while (1) {                                             \
         if (lt->state & BIT(LT_ST_FDEOF))                   \
             return (0);                                     \
@@ -119,6 +120,7 @@ x {                                                         \
     ssize_t recvd = 0;                                      \
     struct lthread *lt = lthread_get_sched()->current_lthread;   \
                                                             \
+    lt->state &= CLEARBIT(LT_ST_FDEOF);                     \
     while (recvd != length) {                               \
         if (lt->state & BIT(LT_ST_FDEOF))                   \
             return (0);                                     \
